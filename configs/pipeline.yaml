@@ -1,0 +1,66 @@
+data:
+  ct_images: ./data/images
+  labels: ./data/labels
+manifests:
+  default: ./data/manifest.jsonl
+models:
+  medim_ckpt: ./models/medim_ckpt
+  nodule_detector: ./models/lung_nodule_ct_detection/lung_nodule_ct_detection
+  qwen_embedding: ./models/Qwen3-Embedding-4B
+  fallback_selector: ./models/fallback_selector_xgb_4feat.pkl
+  fallback_selector_rf: ./models/fallback_selector_rf_4feat.pkl
+  stage0_router: ./models/stage0_router/artifacts/models/router_head_best.pt
+  stunet: ./models/stunet/eval_current.pt
+  voxtell: ./models/voxtell_v1.1
+outputs:
+  analysis: ./outputs/analysis
+  final: ./outputs/final
+  root: ./outputs
+  stage0: ./outputs/stage0
+  stage0_5: ./outputs/stage0_5
+  stage1: ./outputs/stage1
+  stage2: ./outputs/stage2
+python: python
+stage0:
+  aggressive_margin: 40,40,30
+  conservative_margin: 60,60,50
+  crop_mode: policy_group
+  mapping_mode: fixed
+  moderate_margin: 40,40,30
+  spatial_mode: anatomy
+  totalseg_device: gpu
+  totalseg_fast: true
+stage2:
+  eval_overlap: 0.5
+gate:
+  model: ./models/gate_model.joblib
+  metadata: ./models/gate_metadata.json
+  feature_policy: old_best_no_conf
+  threshold: 0.5
+  drop_prefixes:
+    - feature__roi_
+    - feature__n_rois
+    - feature__n_coarse_rois
+    - feature__n_proposal_rois
+    - feature__roi_coarse_fraction
+    - feature__s1_s2_
+    - feature__s2_overlap
+    - feature__s1_covered
+    - feature__s2_outside
+    - feature__s1_outside
+    - feature__s2_conf_
+    - feature__s2_roi_conf_spread
+    - feature__s2_n_low_conf_rois
+  model_type: RF_depth4
+  model_params:
+    n_estimators: 200
+    max_depth: 4
+    min_samples_leaf: 5
+    class_weight: balanced
+    random_state: 123
+workspaces:
+  demo: ''
+  stage0: ''
+  stage0_5: ''
+  stage1: ''
+  stage2: ''

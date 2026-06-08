@@ -1,0 +1,26 @@
+# Runtime outputs and local data
+outputs/
+outputs_smoke/
+data/images/
+data/labels/
+*.nii
+*.nii.gz
+tools/
+
+# Model weights and local model caches are too large for source submission.
+models/
+
+# Python/build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Local machine-specific configs
+configs/*.local.yaml
+
+# Local assistant/session metadata
+.claude/

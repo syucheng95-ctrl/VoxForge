@@ -39,29 +39,49 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Resource check before loading VoxTell (~8 GB GPU + CPU buffers) ──
-    import ctypes
-    import ctypes.wintypes
-
-    class MEMORYSTATUSEX(ctypes.Structure):
-        _fields_ = [("dwLength", ctypes.wintypes.DWORD),
-                    ("dwMemoryLoad", ctypes.wintypes.DWORD),
-                    ("ullTotalPhys", ctypes.c_ulonglong),
-                    ("ullAvailPhys", ctypes.c_ulonglong),
-                    ("ullTotalPageFile", ctypes.c_ulonglong),
-                    ("ullAvailPageFile", ctypes.c_ulonglong),
-                    ("ullTotalVirtual", ctypes.c_ulonglong),
-                    ("ullAvailVirtual", ctypes.c_ulonglong),
-                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
-
     MIN_RAM_GB = 3.0
     MIN_GPU_GB = 9.0
 
+    def _get_free_ram_gb():
+        # Windows: use GlobalMemoryStatusEx via ctypes
+        try:
+            import ctypes
+            import ctypes.wintypes
+            class MEMORYSTATUSEX(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.wintypes.DWORD),
+                            ("dwMemoryLoad", ctypes.wintypes.DWORD),
+                            ("ullTotalPhys", ctypes.c_ulonglong),
+                            ("ullAvailPhys", ctypes.c_ulonglong),
+                            ("ullTotalPageFile", ctypes.c_ulonglong),
+                            ("ullAvailPageFile", ctypes.c_ulonglong),
+                            ("ullTotalVirtual", ctypes.c_ulonglong),
+                            ("ullAvailVirtual", ctypes.c_ulonglong),
+                            ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+            mem = MEMORYSTATUSEX()
+            mem.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(mem))
+            return mem.ullAvailPhys / (1024 ** 3), mem.ullTotalPhys / (1024 ** 3)
+        except (OSError, AttributeError, ImportError):
+            pass
+        # Linux: read /proc/meminfo
+        try:
+            meminfo = {}
+            with open("/proc/meminfo") as f:
+                for line in f:
+                    key, val = line.split(":", 1)
+                    meminfo[key] = int(val.strip().split()[0])  # kB
+            avail = meminfo.get("MemAvailable", meminfo.get("MemFree", 0))
+            total = meminfo.get("MemTotal", 0)
+            if total > 0:
+                return avail / (1024 ** 2), total / (1024 ** 2)
+        except (OSError, IOError):
+            pass
+        # Fallback: skip RAM check (return large values so wait loop passes)
+        print("[Resource] Cannot detect system RAM (non-Windows/Linux), skipping RAM check", flush=True)
+        return 999.0, 999.0
+
     def _check_resources():
-        mem = MEMORYSTATUSEX()
-        mem.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
-        ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(mem))
-        free_ram = mem.ullAvailPhys / (1024 ** 3)
-        total_ram = mem.ullTotalPhys / (1024 ** 3)
+        free_ram, total_ram = _get_free_ram_gb()
         gpu_free = 0.0
         if torch.cuda.is_available():
             gpu_free_mem, gpu_total_mem = torch.cuda.mem_get_info(0)
